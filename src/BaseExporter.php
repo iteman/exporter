@@ -44,15 +44,7 @@
 namespace SebastianBergmann\Exporter;
 
 /**
- * A nifty utility for visualizing PHP variables.
- *
- * <code>
- * <?php
- * use SebastianBergmann\Exporter\Exporter;
- *
- * $exporter = new Exporter;
- * print $exporter->export(new Exception);
- * </code>
+ * Abstract base class for visualizing PHP variables.
  *
  * @package    Exporter
  * @author     Sebastian Bergmann <sebastian@phpunit.de>
@@ -60,34 +52,42 @@ namespace SebastianBergmann\Exporter;
  * @license    http://www.opensource.org/licenses/BSD-3-Clause  The BSD 3-Clause License
  * @link       https://github.com/sebastianbergmann/exporter
  */
-class Exporter extends BaseExporter
+abstract class BaseExporter
 {
+    /**
+     * @var Factory
+     */
+    protected $factory;
+
     /**
      * @param Factory $factory
      */
-    public function __construct(Factory $factory = null)
+    public function __construct(Factory $factory)
     {
-        if (!$factory) {
-            $factory = new Factory();
-
-            $factory->register(new BasicExporter($factory));
-            $factory->register(new StringExporter($factory));
-            $factory->register(new ArrayExporter($factory));
-            $factory->register(new ObjectExporter($factory));
-            $factory->register(new SplObjectStorageExporter($factory));
-        }
-
-        parent::__construct($factory);
+        $this->factory = $factory;
     }
 
     /**
-     * Gets the current factory.
+     * Returns whether the exporter can export a given value.
      *
-     * @return Factory
+     * @param  mixed $value The value to export.
+     * @return boolean
      */
-    public function getFactory()
+    public function accepts($value)
     {
-        return $this->factory;
+        return true;
+    }
+
+    /**
+     * Exports a value as a string.
+     *
+     * @param  mixed   $value
+     * @param  integer $indentation The indentation level of the 2nd+ line
+     * @return string
+     */
+    public function export($value, $indentation = 0)
+    {
+        return $this->recursiveExport($value, $indentation);
     }
 
     /**
@@ -99,11 +99,7 @@ class Exporter extends BaseExporter
      * @return string
      * @see    SebastianBergmann\Exporter\Exporter::export
      */
-    protected function recursiveExport(&$value, $indentation, $processed = NULL)
-    {
-        $exporter = $this->factory->getExporterFor($value);
-        return $exporter->recursiveExport($value, $indentation, $processed);
-    }
+    abstract protected function recursiveExport(&$value, $indentation, $processed = NULL);
 
     /**
      * Exports a value into a single-line string.
@@ -114,8 +110,7 @@ class Exporter extends BaseExporter
      */
     public function shortenedExport($value)
     {
-        $exporter = $this->factory->getExporterFor($value);
-        return $exporter->shortenedExport($value);
+        return $this->export($value);
     }
 
     /**
@@ -126,7 +121,6 @@ class Exporter extends BaseExporter
      */
     public function toArray($value)
     {
-        $exporter = $this->factory->getExporterFor($value);
-        return $exporter->toArray($value);
+        return (array)$value;
     }
 }

@@ -44,15 +44,7 @@
 namespace SebastianBergmann\Exporter;
 
 /**
- * A nifty utility for visualizing PHP variables.
- *
- * <code>
- * <?php
- * use SebastianBergmann\Exporter\Exporter;
- *
- * $exporter = new Exporter;
- * print $exporter->export(new Exception);
- * </code>
+ * Exporter for visualizing basic types.
  *
  * @package    Exporter
  * @author     Sebastian Bergmann <sebastian@phpunit.de>
@@ -60,36 +52,8 @@ namespace SebastianBergmann\Exporter;
  * @license    http://www.opensource.org/licenses/BSD-3-Clause  The BSD 3-Clause License
  * @link       https://github.com/sebastianbergmann/exporter
  */
-class Exporter extends BaseExporter
+class BasicExporter extends BaseExporter
 {
-    /**
-     * @param Factory $factory
-     */
-    public function __construct(Factory $factory = null)
-    {
-        if (!$factory) {
-            $factory = new Factory();
-
-            $factory->register(new BasicExporter($factory));
-            $factory->register(new StringExporter($factory));
-            $factory->register(new ArrayExporter($factory));
-            $factory->register(new ObjectExporter($factory));
-            $factory->register(new SplObjectStorageExporter($factory));
-        }
-
-        parent::__construct($factory);
-    }
-
-    /**
-     * Gets the current factory.
-     *
-     * @return Factory
-     */
-    public function getFactory()
-    {
-        return $this->factory;
-    }
-
     /**
      * Recursively exports a value as a string.
      *
@@ -101,32 +65,30 @@ class Exporter extends BaseExporter
      */
     protected function recursiveExport(&$value, $indentation, $processed = NULL)
     {
-        $exporter = $this->factory->getExporterFor($value);
-        return $exporter->recursiveExport($value, $indentation, $processed);
-    }
+        if ($value === NULL) {
+            return 'null';
+        }
 
-    /**
-     * Exports a value into a single-line string.
-     *
-     * @param  mixed $value
-     * @return string
-     * @see    SebastianBergmann\Exporter\Exporter::export
-     */
-    public function shortenedExport($value)
-    {
-        $exporter = $this->factory->getExporterFor($value);
-        return $exporter->shortenedExport($value);
-    }
+        if ($value === TRUE) {
+            return 'true';
+        }
 
-    /**
-     * Converts a PHP value to an array.
-     *
-     * @param  mixed $value
-     * @return array
-     */
-    public function toArray($value)
-    {
-        $exporter = $this->factory->getExporterFor($value);
-        return $exporter->toArray($value);
+        if ($value === FALSE) {
+            return 'false';
+        }
+
+        if (is_float($value) && floatval(intval($value)) === $value) {
+            return "$value.0";
+        }
+
+        if (is_resource($value)) {
+            return sprintf(
+              'resource(%d) of type (%s)',
+              $value,
+              get_resource_type($value)
+            );
+        }
+
+        return var_export($value, TRUE);
     }
 }

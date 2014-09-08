@@ -44,15 +44,7 @@
 namespace SebastianBergmann\Exporter;
 
 /**
- * A nifty utility for visualizing PHP variables.
- *
- * <code>
- * <?php
- * use SebastianBergmann\Exporter\Exporter;
- *
- * $exporter = new Exporter;
- * print $exporter->export(new Exception);
- * </code>
+ * Exporter for visualizing objects.
  *
  * @package    Exporter
  * @author     Sebastian Bergmann <sebastian@phpunit.de>
@@ -60,34 +52,17 @@ namespace SebastianBergmann\Exporter;
  * @license    http://www.opensource.org/licenses/BSD-3-Clause  The BSD 3-Clause License
  * @link       https://github.com/sebastianbergmann/exporter
  */
-class Exporter extends BaseExporter
+class ObjectExporter extends BaseExporter
 {
     /**
-     * @param Factory $factory
-     */
-    public function __construct(Factory $factory = null)
-    {
-        if (!$factory) {
-            $factory = new Factory();
-
-            $factory->register(new BasicExporter($factory));
-            $factory->register(new StringExporter($factory));
-            $factory->register(new ArrayExporter($factory));
-            $factory->register(new ObjectExporter($factory));
-            $factory->register(new SplObjectStorageExporter($factory));
-        }
-
-        parent::__construct($factory);
-    }
-
-    /**
-     * Gets the current factory.
+     * Returns whether the exporter can export a given value.
      *
-     * @return Factory
+     * @param  mixed $value The value to export.
+     * @return boolean
      */
-    public function getFactory()
+    public function accepts($value)
     {
-        return $this->factory;
+        return is_object($value);
     }
 
     /**
@@ -101,8 +76,39 @@ class Exporter extends BaseExporter
      */
     protected function recursiveExport(&$value, $indentation, $processed = NULL)
     {
-        $exporter = $this->factory->getExporterFor($value);
-        return $exporter->recursiveExport($value, $indentation, $processed);
+        if (!$processed) {
+            $processed = new Context;
+        }
+
+        $class = get_class($value);
+
+        if ($hash = $processed->contains($value)) {
+            return sprintf('%s Object &%s', $class, $hash);
+        }
+
+        $hash = $processed->add($value);
+        $whitespace = str_repeat(' ', 4 * $indentation);
+        $values = '';
+
+        $array = $this->toArray($value);
+
+        if (count($array) > 0) {
+            foreach ($array as $k => $v) {
+                $keyExporter = $this->factory->getExporterFor($k);
+                $valueExporter = $this->factory->getExporterFor($v);
+
+                $values .= sprintf(
+                  '%s    %s => %s' . "\n",
+                  $whitespace,
+                  $keyExporter->recursiveExport($k, $indentation),
+                  $valueExporter->recursiveExport($v, $indentation + 1, $processed)
+                );
+            }
+
+            $values = "\n" . $values . $whitespace;
+        }
+
+        return sprintf('%s Object &%s (%s)', $class, $hash, $values);
     }
 
     /**
@@ -114,8 +120,11 @@ class Exporter extends BaseExporter
      */
     public function shortenedExport($value)
     {
-        $exporter = $this->factory->getExporterFor($value);
-        return $exporter->shortenedExport($value);
+        return sprintf(
+          '%s Object (%s)',
+          get_class($value),
+          count($this->toArray($value)) > 0 ? '...' : ''
+        );
     }
 
     /**
@@ -126,7 +135,27 @@ class Exporter extends BaseExporter
      */
     public function toArray($value)
     {
-        $exporter = $this->factory->getExporterFor($value);
-        return $exporter->toArray($value);
+        $array = array();
+
+        foreach ((array)$value as $key => $val) {
+            // properties are transformed to keys in the following way:
+
+            // private   $property => "\0Classname\0property"
+            // protected $property => "\0*\0property"
+            // public    $property => "property"
+
+            if (preg_match('/^\0.+\0(.+)$/', $key, $matches)) {
+                $key = $matches[1];
+            }
+
+            // See https://github.com/php/php-src/commit/5721132
+            if ($key === "\0gcdata") {
+                continue;
+            }
+
+            $array[$key] = $val;
+        }
+
+        return $array;
     }
 }

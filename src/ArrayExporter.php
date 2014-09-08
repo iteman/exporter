@@ -44,15 +44,7 @@
 namespace SebastianBergmann\Exporter;
 
 /**
- * A nifty utility for visualizing PHP variables.
- *
- * <code>
- * <?php
- * use SebastianBergmann\Exporter\Exporter;
- *
- * $exporter = new Exporter;
- * print $exporter->export(new Exception);
- * </code>
+ * Exporter for visualizing arrays.
  *
  * @package    Exporter
  * @author     Sebastian Bergmann <sebastian@phpunit.de>
@@ -60,34 +52,17 @@ namespace SebastianBergmann\Exporter;
  * @license    http://www.opensource.org/licenses/BSD-3-Clause  The BSD 3-Clause License
  * @link       https://github.com/sebastianbergmann/exporter
  */
-class Exporter extends BaseExporter
+class ArrayExporter extends BaseExporter
 {
     /**
-     * @param Factory $factory
-     */
-    public function __construct(Factory $factory = null)
-    {
-        if (!$factory) {
-            $factory = new Factory();
-
-            $factory->register(new BasicExporter($factory));
-            $factory->register(new StringExporter($factory));
-            $factory->register(new ArrayExporter($factory));
-            $factory->register(new ObjectExporter($factory));
-            $factory->register(new SplObjectStorageExporter($factory));
-        }
-
-        parent::__construct($factory);
-    }
-
-    /**
-     * Gets the current factory.
+     * Returns whether the exporter can export a given value.
      *
-     * @return Factory
+     * @param  mixed $value The value to export.
+     * @return boolean
      */
-    public function getFactory()
+    public function accepts($value)
     {
-        return $this->factory;
+        return is_array($value);
     }
 
     /**
@@ -101,8 +76,37 @@ class Exporter extends BaseExporter
      */
     protected function recursiveExport(&$value, $indentation, $processed = NULL)
     {
-        $exporter = $this->factory->getExporterFor($value);
-        return $exporter->recursiveExport($value, $indentation, $processed);
+        if (!$processed) {
+            $processed = new Context;
+        }
+
+        if (($key = $processed->contains($value)) !== FALSE) {
+            return 'Array &' . $key;
+        }
+
+        $key = $processed->add($value);
+        $whitespace = str_repeat(' ', 4 * $indentation);
+        $values = '';
+
+        if (count($value) > 0) {
+            foreach ($value as $k => $v) {
+                $keyExporter = $this->factory->getExporterFor($k);
+                $valueExporter = $this->factory->getExporterFor($value[$k]);
+
+                $values .= sprintf(
+                  '%s    %s => %s' . "\n",
+                  $whitespace,
+                  $keyExporter->recursiveExport($k, $indentation),
+                  $valueExporter->recursiveExport(
+                    $value[$k], $indentation + 1, $processed
+                  )
+                );
+            }
+
+            $values = "\n" . $values . $whitespace;
+        }
+
+        return sprintf('Array &%s (%s)', $key, $values);
     }
 
     /**
@@ -114,19 +118,9 @@ class Exporter extends BaseExporter
      */
     public function shortenedExport($value)
     {
-        $exporter = $this->factory->getExporterFor($value);
-        return $exporter->shortenedExport($value);
-    }
-
-    /**
-     * Converts a PHP value to an array.
-     *
-     * @param  mixed $value
-     * @return array
-     */
-    public function toArray($value)
-    {
-        $exporter = $this->factory->getExporterFor($value);
-        return $exporter->toArray($value);
+        return sprintf(
+          'Array (%s)',
+          count($value) > 0 ? '...' : ''
+        );
     }
 }

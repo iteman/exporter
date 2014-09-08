@@ -44,15 +44,7 @@
 namespace SebastianBergmann\Exporter;
 
 /**
- * A nifty utility for visualizing PHP variables.
- *
- * <code>
- * <?php
- * use SebastianBergmann\Exporter\Exporter;
- *
- * $exporter = new Exporter;
- * print $exporter->export(new Exception);
- * </code>
+ * Factory of exporters for visualizing PHP variables.
  *
  * @package    Exporter
  * @author     Sebastian Bergmann <sebastian@phpunit.de>
@@ -60,73 +52,51 @@ namespace SebastianBergmann\Exporter;
  * @license    http://www.opensource.org/licenses/BSD-3-Clause  The BSD 3-Clause License
  * @link       https://github.com/sebastianbergmann/exporter
  */
-class Exporter extends BaseExporter
+class Factory
 {
     /**
-     * @param Factory $factory
+     * @var BaseExporter[]
      */
-    public function __construct(Factory $factory = null)
-    {
-        if (!$factory) {
-            $factory = new Factory();
+    private $exporters = array();
 
-            $factory->register(new BasicExporter($factory));
-            $factory->register(new StringExporter($factory));
-            $factory->register(new ArrayExporter($factory));
-            $factory->register(new ObjectExporter($factory));
-            $factory->register(new SplObjectStorageExporter($factory));
+    /**
+     * Returns the correct exporter for exporting a given value.
+     *
+     * @param  mixed $value The value to export.
+     * @return BaseExporter
+     */
+    public function getExporterFor($value)
+    {
+        foreach ($this->exporters as $exporter) {
+            if ($exporter->accepts($value)) {
+                return $exporter;
+            }
         }
-
-        parent::__construct($factory);
     }
 
     /**
-     * Gets the current factory.
+     * Registers a new exporter.
      *
-     * @return Factory
+     * @param BaseExporter $exporter The registered exporter
      */
-    public function getFactory()
+    public function register(BaseExporter $exporter)
     {
-        return $this->factory;
+        array_unshift($this->exporters, $exporter);
     }
 
     /**
-     * Recursively exports a value as a string.
+     * Unregisters an exporter.
      *
-     * @param  mixed $value The value to export
-     * @param  integer $indentation The indentation level of the 2nd+ line
-     * @param  SebastianBergmann\Exporter\Context $processed Contains all objects and arrays that have previously been rendered
-     * @return string
-     * @see    SebastianBergmann\Exporter\Exporter::export
-     */
-    protected function recursiveExport(&$value, $indentation, $processed = NULL)
-    {
-        $exporter = $this->factory->getExporterFor($value);
-        return $exporter->recursiveExport($value, $indentation, $processed);
-    }
-
-    /**
-     * Exports a value into a single-line string.
+     * This exporter will no longer be returned by getExporterFor().
      *
-     * @param  mixed $value
-     * @return string
-     * @see    SebastianBergmann\Exporter\Exporter::export
+     * @param BaseExporter $exporter The unregistered exporter
      */
-    public function shortenedExport($value)
+    public function unregister(BaseExporter $exporter)
     {
-        $exporter = $this->factory->getExporterFor($value);
-        return $exporter->shortenedExport($value);
-    }
-
-    /**
-     * Converts a PHP value to an array.
-     *
-     * @param  mixed $value
-     * @return array
-     */
-    public function toArray($value)
-    {
-        $exporter = $this->factory->getExporterFor($value);
-        return $exporter->toArray($value);
+        foreach ($this->exporters as $key => $_exporter) {
+            if ($exporter === $_exporter) {
+                unset($this->exporters[$key]);
+            }
+        }
     }
 }
